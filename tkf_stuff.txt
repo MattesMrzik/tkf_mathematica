@@ -1,0 +1,34 @@
+(* 1. Parameters *)
+lambda = 2;
+mu = 3;
+
+(* 2. Core Definitions *)
+beta[t_] := (1 - Exp[(lambda - mu) t]) / (mu - lambda Exp[(lambda - mu) t])
+N1[t_] := (1 - Exp[-mu t] - mu beta[t]) * (1 - lambda beta[t])
+N0[t_] := mu beta[t]
+
+(* 3. Stable Log Expressions (Using FullSimplify INSIDE the Log) *)
+logN1Sym[t_] := FullSimplify[Log[FullSimplify[N1[t]]]]
+logN0Sym[t_] := FullSimplify[Log[FullSimplify[N0[t]]]]
+logBetaSym[t_] := FullSimplify[Log[FullSimplify[beta[t]]]]
+logLambdaSym = Log[lambda];
+
+(* 4. Final lnEta definition *)
+(* Wrapping combined expression in FullSimplify to simplify log differences *)
+lnEta[t_] := FullSimplify[logN1Sym[t] - logN0Sym[t] - logLambdaSym - logBetaSym[t]]
+
+(* 5. Evaluation *)
+longTime = 10;
+precision = 1000;
+
+valLogN1 = N[logN1Sym[longTime], precision];
+valLogN0 = N[logN0Sym[longTime], precision];
+valLogBeta = N[logBetaSym[longTime], precision];
+valLogLambda = N[logLambdaSym, precision];
+valLnEta = N[lnEta[longTime], precision];
+
+(* 6. Output Results *)
+Print["Long time ln(N1) = ", valLogN1]
+Print["Long time ln(N0) = ", valLogN0]
+Print["Long time ln(beta) = ", valLogBeta]
+Print["Long time ln(eta) = ", ScientificForm[valLnEta]]
