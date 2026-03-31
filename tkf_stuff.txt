@@ -7,23 +7,26 @@ N1[t_, l_, m_] := (1 - Exp[-m t] - m beta[t, l, m]) * (1 - l beta[t, l, m])
 N0[t_, l_, m_] := m beta[t, l, m]
 
 (* 3. Stable Log Expressions (Parameterized with Constraints) *)
-(* Constraints provided: 0 < l < m and t < 0 *)
 constraints = {0 < l < m, 0 < t};
 
-logN1Sym[t_, l_, m_] := FullSimplify[Log[FullSimplify[N1[t, l, m], constraints]], constraints]
-logN0Sym[t_, l_, m_] := FullSimplify[Log[FullSimplify[N0[t, l, m], constraints]], constraints]
-logBetaSym[t_, l_, m_] := FullSimplify[Log[FullSimplify[beta[t, l, m], constraints]], constraints]
+(* Define symbolic versions once to use for both printing and calculation *)
+exprN1Sym[t_, l_, m_] := FullSimplify[N1[t, l, m], constraints];
+exprN0Sym[t_, l_, m_] := FullSimplify[N0[t, l, m], constraints];
+exprBetaSym[t_, l_, m_] := FullSimplify[beta[t, l, m], constraints];
+
+logN1Sym[t_, l_, m_] := FullSimplify[Log[exprN1Sym[t, l, m]], constraints]
+logN0Sym[t_, l_, m_] := FullSimplify[Log[exprN0Sym[t, l, m]], constraints]
+logBetaSym[t_, l_, m_] := FullSimplify[Log[exprBetaSym[t, l, m]], constraints]
 logLambdaSym[l_] := Log[l]
 
-(* 4. Final lnEta definition taking time, lambda, and mu *)
+(* 4. Final lnEta definition *)
 lnEta[t_, l_, m_] := FullSimplify[
   logN1Sym[t, l, m] - logN0Sym[t, l, m] - logLambdaSym[l] - logBetaSym[t, l, m], 
   constraints
 ]
 
 (* 5. Evaluation for a specific case *)
-(* Note: Using t = -10 to satisfy t < 0 constraint *)
-testTime = 10; 
+testTime = 34; 
 testLambda = 2;
 testMu = 3;
 precision = 50;
@@ -34,8 +37,14 @@ valLogBeta = N[logBetaSym[testTime, testLambda, testMu], precision];
 valLogLambda = N[logLambdaSym[testLambda], precision];
 valLnEta = N[lnEta[testTime, testLambda, testMu], precision];
 
-(* 6. Output Results *)
-Print["Results for t < 0:"]
+(* 6. Output Results and Equations *)
+Print["--- Simplified Symbolic Equations ---"]
+Print["Simplified N1(t)   = ", exprN1Sym[t, l, m]]
+Print["Simplified N0(t)   = ", exprN0Sym[t, l, m]]
+Print["Simplified beta(t) = ", exprBetaSym[t, l, m]]
+Print["Simplified ln(eta) = ", lnEta[t, l, m]]
+
+Print["\n--- Numerical Results (t=", testTime, ", l=", testLambda, ", m=", testMu, ") ---"]
 Print["ln(N1)     = ", valLogN1]
 Print["ln(N0)     = ", valLogN0]
 Print["ln(lambda) = ", valLogLambda]
