@@ -1,34 +1,43 @@
 (* 1. Parameters *)
-lambda = 2;
-mu = 3;
+(* mu, lambda, and t are handled as function arguments *)
 
-(* 2. Core Definitions *)
-beta[t_] := (1 - Exp[(lambda - mu) t]) / (mu - lambda Exp[(lambda - mu) t])
-N1[t_] := (1 - Exp[-mu t] - mu beta[t]) * (1 - lambda beta[t])
-N0[t_] := mu beta[t]
+(* 2. Core Definitions (Fully Parameterized) *)
+beta[t_, l_, m_] := (1 - Exp[(l - m) t]) / (m - l Exp[(l - m) t])
+N1[t_, l_, m_] := (1 - Exp[-m t] - m beta[t, l, m]) * (1 - l beta[t, l, m])
+N0[t_, l_, m_] := m beta[t, l, m]
 
-(* 3. Stable Log Expressions (Using FullSimplify INSIDE the Log) *)
-logN1Sym[t_] := FullSimplify[Log[FullSimplify[N1[t]]]]
-logN0Sym[t_] := FullSimplify[Log[FullSimplify[N0[t]]]]
-logBetaSym[t_] := FullSimplify[Log[FullSimplify[beta[t]]]]
-logLambdaSym = Log[lambda];
+(* 3. Stable Log Expressions (Parameterized with Constraints) *)
+(* Constraints provided: 0 < l < m and t < 0 *)
+constraints = {0 < l < m, 0 < t};
 
-(* 4. Final lnEta definition *)
-(* Wrapping combined expression in FullSimplify to simplify log differences *)
-lnEta[t_] := FullSimplify[logN1Sym[t] - logN0Sym[t] - logLambdaSym - logBetaSym[t]]
+logN1Sym[t_, l_, m_] := FullSimplify[Log[FullSimplify[N1[t, l, m], constraints]], constraints]
+logN0Sym[t_, l_, m_] := FullSimplify[Log[FullSimplify[N0[t, l, m], constraints]], constraints]
+logBetaSym[t_, l_, m_] := FullSimplify[Log[FullSimplify[beta[t, l, m], constraints]], constraints]
+logLambdaSym[l_] := Log[l]
 
-(* 5. Evaluation *)
-longTime = 10;
-precision = 1000;
+(* 4. Final lnEta definition taking time, lambda, and mu *)
+lnEta[t_, l_, m_] := FullSimplify[
+  logN1Sym[t, l, m] - logN0Sym[t, l, m] - logLambdaSym[l] - logBetaSym[t, l, m], 
+  constraints
+]
 
-valLogN1 = N[logN1Sym[longTime], precision];
-valLogN0 = N[logN0Sym[longTime], precision];
-valLogBeta = N[logBetaSym[longTime], precision];
-valLogLambda = N[logLambdaSym, precision];
-valLnEta = N[lnEta[longTime], precision];
+(* 5. Evaluation for a specific case *)
+(* Note: Using t = -10 to satisfy t < 0 constraint *)
+testTime = 10; 
+testLambda = 2;
+testMu = 3;
+precision = 50;
+
+valLogN1 = N[logN1Sym[testTime, testLambda, testMu], precision];
+valLogN0 = N[logN0Sym[testTime, testLambda, testMu], precision];
+valLogBeta = N[logBetaSym[testTime, testLambda, testMu], precision];
+valLogLambda = N[logLambdaSym[testLambda], precision];
+valLnEta = N[lnEta[testTime, testLambda, testMu], precision];
 
 (* 6. Output Results *)
-Print["Long time ln(N1) = ", valLogN1]
-Print["Long time ln(N0) = ", valLogN0]
-Print["Long time ln(beta) = ", valLogBeta]
-Print["Long time ln(eta) = ", ScientificForm[valLnEta]]
+Print["Results for t < 0:"]
+Print["ln(N1)     = ", valLogN1]
+Print["ln(N0)     = ", valLogN0]
+Print["ln(lambda) = ", valLogLambda]
+Print["ln(beta)   = ", valLogBeta]
+Print["ln(eta)    = ", valLnEta]
