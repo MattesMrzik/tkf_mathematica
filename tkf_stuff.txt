@@ -1,52 +1,87 @@
-(* 1. Parameters *)
-(* mu, lambda, and t are handled as function arguments *)
-
-(* 2. Core Definitions (Fully Parameterized) *)
+(* 1. Core Parameters & Definitions *)
 beta[t_, l_, m_] := (1 - Exp[(l - m) t]) / (m - l Exp[(l - m) t])
 N1[t_, l_, m_] := (1 - Exp[-m t] - m beta[t, l, m]) * (1 - l beta[t, l, m])
 N0[t_, l_, m_] := m beta[t, l, m]
+H1[t_, l_, m_] := Exp[-m t] * (1 - l beta[t, l, m])
 
-(* 3. Stable Log Expressions (Parameterized with Constraints) *)
-constraints = {0 < l < m, 0 < t};
+(* 2. Global Symbolic Simplifications for Stability *)
+constraints = {l > 0, m > 0, l < m, t > 0};
 
-(* Define symbolic versions once to use for both printing and calculation *)
-exprN1Sym[t_, l_, m_] := FullSimplify[N1[t, l, m], constraints];
-exprN0Sym[t_, l_, m_] := FullSimplify[N0[t, l, m], constraints];
-exprBetaSym[t_, l_, m_] := FullSimplify[beta[t, l, m], constraints];
+symbolicH1 = FullSimplify[H1[t, l, m], constraints];
+symbolicLogH1 = FullSimplify[Log[symbolicH1], constraints];
 
-logN1Sym[t_, l_, m_] := FullSimplify[Log[exprN1Sym[t, l, m]], constraints]
-logN0Sym[t_, l_, m_] := FullSimplify[Log[exprN0Sym[t, l, m]], constraints]
-logBetaSym[t_, l_, m_] := FullSimplify[Log[exprBetaSym[t, l, m]], constraints]
-logLambdaSym[l_] := Log[l]
+symbolicBeta = FullSimplify[beta[t, l, m], constraints];
+symbolicLogBeta = FullSimplify[Log[symbolicBeta], constraints];
 
-(* 4. Final lnEta definition *)
-lnEta[t_, l_, m_] := FullSimplify[
-  logN1Sym[t, l, m] - logN0Sym[t, l, m] - logLambdaSym[l] - logBetaSym[t, l, m], 
-  constraints
+(* ln(eta) = Log[N1] - Log[N0] - Log[l] - Log[beta] *)
+symbolicLnEta = FullSimplify[Log[N1[t, l, m]] - Log[N0[t, l, m]] - Log[l] - Log[beta[t, l, m]], constraints];
+
+Print["--- Symbolic Analysis ---"];
+Print["Simplified Log[H1]: ", symbolicLogH1];
+Print["Simplified Log[beta]: ", symbolicLogBeta];
+Print["Simplified ln(eta): ", symbolicLnEta];
+Print["\n"];
+
+(* 3. Stable Evaluation Functions *)
+logBetaSym[tVal_, lVal_, mVal_] := Module[{},
+    If[tVal < 10^-15,
+        Log[tVal], (* Taylor limit as t -> 0 *)
+        N[symbolicLogBeta /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
+    ]
 ]
 
-(* 5. Evaluation for a specific case *)
-testTime = 34; 
-testLambda = 2;
-testMu = 3;
-precision = 50;
+logH1Sym[tVal_, lVal_, mVal_] := Module[{},
+    N[symbolicLogH1 /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
+]
 
-valLogN1 = N[logN1Sym[testTime, testLambda, testMu], precision];
-valLogN0 = N[logN0Sym[testTime, testLambda, testMu], precision];
-valLogBeta = N[logBetaSym[testTime, testLambda, testMu], precision];
-valLogLambda = N[logLambdaSym[testLambda], precision];
-valLnEta = N[lnEta[testTime, testLambda, testMu], precision];
+lnEtaSym[tVal_, lVal_, mVal_] := Module[{},
+    If[tVal < 10^-15,
+        Log[1/(2 * lVal)], (* Limit as t -> 0 *)
+        N[symbolicLnEta /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
+    ]
+]
 
-(* 6. Output Results and Equations *)
-Print["--- Simplified Symbolic Equations ---"]
-Print["Simplified N1(t)   = ", exprN1Sym[t, l, m]]
-Print["Simplified N0(t)   = ", exprN0Sym[t, l, m]]
-Print["Simplified beta(t) = ", exprBetaSym[t, l, m]]
-Print["Simplified ln(eta) = ", lnEta[t, l, m]]
+(* 4. Input Data & Tables *)
+timePoints = {10^-16, 1.0, 100.0};
+paramPairs = {
+    {0.01, 0.0100001},
+    {0.01, 5.0},
+    {4.9999, 5.0},
+    {4.999, 100.0},
+    {99.999, 100.0}
+};
 
-Print["\n--- Numerical Results (t=", testTime, ", l=", testLambda, ", m=", testMu, ") ---"]
-Print["ln(N1)     = ", valLogN1]
-Print["ln(N0)     = ", valLogN0]
-Print["ln(lambda) = ", valLogLambda]
-Print["ln(beta)   = ", valLogBeta]
-Print["ln(eta)    = ", valLnEta]
+(* Table Printing Utility *)
+formatVal[v_] := Module[{vN = N[v, 12], mantissa, exponent},
+    If[Abs[vN] < 10^-3 || Abs[vN] > 10^5,
+        mantissa = MantissaExponent[vN][[1]] * 10;
+        exponent = MantissaExponent[vN][[2]] - 1;
+        ToString[NumberForm[mantissa, {14, 10}]] <> "e" <> ToString[exponent],
+        ToString[NumberForm[vN, {14, 10}]]
+    ]
+]
+
+printTable[title_, func_] := Module[{},
+    Print["--- ", title, " ---"];
+    Print["| Time      | Lambda    | Mu        | Value                |"];
+    Print["|-----------|-----------|-----------|----------------------|"];
+    Do[
+        lVal = pair[[1]]; mVal = pair[[2]];
+        Do[
+            val = func[tVal, lVal, mVal];
+            tStr = If[tVal < 1, "1.0e-16 ", If[tVal == 1.0, "1.0     ", "100.0   "]];
+            lStr = StringPadRight[ToString[PaddedForm[lVal, {7, 4}]], 9];
+            mStr = StringPadRight[ToString[PaddedForm[mVal, {8, 4}]], 9];
+            valStr = formatVal[val];
+            Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", StringPadRight[valStr, 20], " |"];
+        , {tVal, timePoints}];
+    , {pair, paramPairs}];
+    Print["\n"];
+]
+
+printTable["ln(beta)", logBetaSym];
+printTable["ln(H1)", logH1Sym];
+printTable["ln(eta)", lnEtaSym];
+
+Print["--- Asymptotics ---"];
+Print["Taylor expansion of beta(t) at t=0: ", Normal[Series[beta[t, l, m], {t, 0, 3}]]];
