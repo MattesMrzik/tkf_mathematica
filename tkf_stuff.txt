@@ -28,7 +28,7 @@ Print["--- Symbolic Analysis ---"];
 Print["Simplified beta: ", symbolicBeta];
 Print["Simplified I1: ", symbolicI1];
 Print["Simplified H1: ", symbolicH1];
-Print["Simplified U] ", symbolicU];
+Print["Simplified U: ", symbolicU];
 Print["\n"];
 
 Print["--- Symbolic Log Analysis ---"];
@@ -86,45 +86,50 @@ logN0Sym[tVal_, lVal_, mVal_] := logBetaSym[tVal, lVal, mVal] + Log[mVal]
 Eta[t_, l_, m_] := logUSym[t, l, m] + logI1Sym[t, l, m] - Log[m] - Log[l] - 2* logBetaSym[t, l, m]
 
 (* 4. Input Data & Tables *)
-timePoints = {10^-16, 1.0, 100.0};
+timePoints = {10^-16, 10^-8, 1.0, 50.0, 100.0, 500.0};
 paramPairs = {
-    {0.01, 0.0100001},
-    {0.01, 5.0},
-    {4.9999, 5.0},
-    {4.999, 100.0},
-    {99.999, 100.0}
+    {0.0001, 0.0001001},  (* Extremely small lambda, mu, tiny difference *)
+    {0.01, 0.0100001},    (* Small lambda, mu *)
+    {0.01, 5.0},          (* Small lambda, large mu *)
+    {4.9999, 5.0},        (* Close lambda, mu *)
+    {1.0, 100.0},         (* Large gap *)
+    {4.999, 100.0},       (* Specific case from user *)
+    {99.999, 100.0},      (* Large lambda, mu, close *)
+    {10.0, 1000.0},       (* Very large mu *)
+    {999.999, 1000.0}     (* Very large lambda, mu, very close *)
 };
 
 (* Table Utility *)
-formatVal[v_] := Module[{vN, mantissa, exponent},
+formatVal[v_, prec_: 16] := Module[{vN, mantissa, exponent},
     If[Not[NumberQ[v]], Return[ToString[v]]];
-    vN = N[v, 20];
+    vN = N[v, prec + 4];
     If[Not[NumberQ[vN]], Return[ToString[vN]]];
     If[Abs[vN] < 10^-3 || Abs[vN] > 10^5,
         mantissa = MantissaExponent[vN][[1]] * 10;
         exponent = MantissaExponent[vN][[2]] - 1;
-        ToString[NumberForm[mantissa, {20, 14}]] <> "e" <> ToString[exponent],
-        ToString[NumberForm[vN, {20, 14}]]
+        ToString[NumberForm[mantissa, {prec + 4, prec}]] <> "e" <> ToString[exponent],
+        ToString[NumberForm[vN, {prec + 4, prec}]]
     ]
 ]
 
 printTable[title_, func_] := Module[{},
     Print["--- ", title, " ---"];
-    Print["| Time      | Lambda     | Mu         | Value                    |"];
-    Print["|-----------|------------|------------|--------------------------|"];
+    Print["| Time          | Lambda       | Mu           | Value                  |"];
+    Print["|---------------|--------------|--------------|------------------------|"];
     Do[
         lVal = pair[[1]]; mVal = pair[[2]];
         Do[
             val = func[tVal, lVal, mVal];
-            tStr = If[tVal < 1, "1.0e-16  ", If[tVal == 1.0, "1.0      ", "100.0    "]];
-            lStr = StringPadRight[ToString[PaddedForm[lVal, {7, 10}]], 10];
-            mStr = StringPadRight[ToString[PaddedForm[mVal, {8, 10}]], 10];
-            valStr = formatVal[val];
-            Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", StringPadRight[valStr, 24], " |"];
+            tStr = StringPadRight[formatVal[tVal, 4], 13];
+            lStr = StringPadRight[formatVal[lVal, 7], 12];
+            mStr = StringPadRight[formatVal[mVal, 7], 12];
+            valStr = StringPadRight[formatVal[val, 16], 24];
+            Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", valStr, " |"];
         , {tVal, timePoints}];
     , {pair, paramPairs}];
     Print["\n"];
 ]
+
 
 printTable["ln(beta)", logBetaSym];
 printTable["ln(I1)", logI1Sym];
@@ -133,6 +138,6 @@ printTable["ln(N0)", logN0Sym];
 printTable["ln(U)", logUSym];
 printTable["Eta", Eta];
 
-Print["--- Asymptotics ---"];
-Print["Taylor expansion of beta(t) at t=0: ", Normal[Series[beta[t, l, m], {t, 0, 3}]]];
-Print["Taylor expansion of U(t) at t=0: ", Normal[Series[U[t, l, m], {t, 0, 3}]]];
+Print["--- Taylor ---"];
+(* Normal converts a series expansion (returned by Series) into a regular polynomial/expression by dropping the O[t] remainder term. *)
+Print["Taylor expansion of ln(beta(t)) at t=0: ", Normal[Series[Log[beta[t, l, m]], {t, 0, 3}]]];
