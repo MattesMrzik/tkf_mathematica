@@ -82,6 +82,7 @@ logUSym[tVal_, lVal_, mVal_] := Module[{res, stableVal},
     stableVal
 ]
 
+logN0Sym[tVal_, lVal_, mVal_] := logBetaSym[tVal, lVal, mVal] + Log[mVal]
 Eta[t_, l_, m_] := logUSym[t, l, m] + logI1Sym[t, l, m] - Log[m] - Log[l] - 2* logBetaSym[t, l, m]
 
 (* 4. Input Data & Tables *)
@@ -128,6 +129,7 @@ printTable[title_, func_] := Module[{},
 printTable["ln(beta)", logBetaSym];
 printTable["ln(I1)", logI1Sym];
 printTable["ln(H1)", logH1Sym];
+printTable["ln(N0)", logN0Sym];
 printTable["ln(U)", logUSym];
 printTable["Eta", Eta];
 
