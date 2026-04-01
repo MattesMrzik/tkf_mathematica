@@ -20,7 +20,17 @@ symbolicLogH1 = FullSimplify[Log[symbolicH1], constraints];
 symbolicU = FullSimplify[U[t, l, m], constraints];
 symbolicLogU = FullSimplify[Log[symbolicU], constraints];
 
+(* Numerically stable symbolic form of Log[U] to avoid catastrophic cancellation (1 - approx(1)) *)
+symbolicLogUStable = (l - m) t + Log[(m - l) - m*Exp[-l*t] + l*Exp[-m*t]] - Log[m - l*Exp[(l - m) t]];
+
 Print["--- Symbolic Analysis ---"];
+Print["Simplified beta: ", symbolicBeta];
+Print["Simplified I1: ", symbolicI1];
+Print["Simplified H1: ", symbolicH1];
+Print["Simplified U] ", symbolicU];
+Print["\n"];
+
+Print["--- Symbolic Log Analysis ---"];
 Print["Simplified Log[beta]: ", symbolicLogBeta];
 Print["Simplified Log[I1]: ", symbolicLogI1];
 Print["Simplified Log[H1]: ", symbolicLogH1];
@@ -57,18 +67,18 @@ logBetaSym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogBeta, tVal, lVal, mVal]
 logH1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogH1, tVal, lVal, mVal]
 logI1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogI1, tVal, lVal, mVal]
 
-useApproximation = True; (* Toggle for symbolic limits/expansions at extreme scales *)
-logUSym[tVal_, lVal_, mVal_] := Module[{res, T, L, M},
+(* useApproximation = True; *) (* Toggle for symbolic limits/expansions at extreme scales *)
+logUSym[tVal_, lVal_, mVal_] := Module[{res, T, L, M, stableVal},
     res = safeLogN[symbolicLogU, tVal, lVal, mVal];
+    stableVal = safeLogN[symbolicLogUStable, tVal, lVal, mVal];
     
-    If[res === Indeterminate && useApproximation,
-        (* Fallback to large time approximation *)
-        Print["Using large time approximation"];
-        T = Rationalize[tVal, 0]; L = Rationalize[lVal, 0]; M = Rationalize[mVal, 0];
-        res = N[(L - M) * T + Log[(M - L) / M], 1000]
+    If[res =!= Indeterminate,
+        If[res =!= stableVal, 
+            Print["Warning: Significant difference between raw and stable Log[U] at t=", tVal, " (", res, " vs ", stableVal, ")"]
+        ];
     ];
     
-    res
+    stableVal
 ]
 
 (* 4. Input Data & Tables *)
@@ -81,7 +91,7 @@ paramPairs = {
     {99.999, 100.0}
 };
 
-(* Table Printing Utility *)
+(* Table Utility *)
 formatVal[v_] := Module[{vN, mantissa, exponent},
     If[Not[NumberQ[v]], Return[ToString[v]]];
     vN = N[v, 12];
