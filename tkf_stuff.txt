@@ -1,35 +1,30 @@
 (* 1. Core Parameters & Definitions *)
 beta[t_, l_, m_] := (1 - Exp[(l - m) t]) / (m - l Exp[(l - m) t])
-N1[t_, l_, m_] := (1 - Exp[-m t] - m beta[t, l, m]) * (1 - l beta[t, l, m])
 N0[t_, l_, m_] := m beta[t, l, m]
-H1[t_, l_, m_] := Exp[-m t] * (1 - l beta[t, l, m])
 I1[t_, l_, m_] := 1 - l beta[t, l, m]
+H1[t_, l_, m_] := Exp[-m t] * (1 - l beta[t, l, m])
 U[t_, l_, m_] := 1 - Exp[-m t] - m beta[t, l, m]
 
 (* 2. Global Symbolic Simplifications for Stability *)
 constraints = {l > 0, m > 0, l < m, t > 0};
 
-symbolicH1 = FullSimplify[H1[t, l, m], constraints];
-symbolicLogH1 = FullSimplify[Log[symbolicH1], constraints];
+symbolicBeta = FullSimplify[beta[t, l, m], constraints];
+symbolicLogBeta = FullSimplify[Log[symbolicBeta], constraints];
 
 symbolicI1 = FullSimplify[I1[t, l, m], constraints];
 symbolicLogI1 = FullSimplify[Log[symbolicI1], constraints];
 
+symbolicH1 = FullSimplify[H1[t, l, m], constraints];
+symbolicLogH1 = FullSimplify[Log[symbolicH1], constraints];
+
 symbolicU = FullSimplify[U[t, l, m], constraints];
 symbolicLogU = FullSimplify[Log[symbolicU], constraints];
 
-symbolicBeta = FullSimplify[beta[t, l, m], constraints];
-symbolicLogBeta = FullSimplify[Log[symbolicBeta], constraints];
-
-(* ln(eta) = Log[N1] - Log[N0] - Log[l] - Log[beta] *)
-symbolicLnEta = FullSimplify[Log[N1[t, l, m]] - Log[N0[t, l, m]] - Log[l] - Log[beta[t, l, m]], constraints];
-
 Print["--- Symbolic Analysis ---"];
-Print["Simplified Log[H1]: ", symbolicLogH1];
-Print["Simplified Log[I1]: ", symbolicLogI1];
-Print["Simplified Log[U]: ", symbolicLogU];
 Print["Simplified Log[beta]: ", symbolicLogBeta];
-Print["Simplified ln(eta): ", symbolicLnEta];
+Print["Simplified Log[I1]: ", symbolicLogI1];
+Print["Simplified Log[H1]: ", symbolicLogH1];
+Print["Simplified Log[U]: ", symbolicLogU];
 Print["\n"];
 
 (* 3. Stable Evaluation Functions *)
@@ -60,10 +55,7 @@ safeLogN[expr_, tVal_, lVal_, mVal_] := Module[{exactExpr, val, T, L, M},
     ]
 ]
 
-logBetaSym[tVal_, lVal_, mVal_] := Module[{},
-    safeLogN[symbolicLogBeta, tVal, lVal, mVal]
-]
-
+logBetaSym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogBeta, tVal, lVal, mVal]
 logH1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogH1, tVal, lVal, mVal]
 logI1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogI1, tVal, lVal, mVal]
 
@@ -79,20 +71,6 @@ logUSym[tVal_, lVal_, mVal_] := Module[{T, L, M},
     ];
     
     safeLogN[symbolicLogU, tVal, lVal, mVal]
-]
-
-lnEtaSym[tVal_, lVal_, mVal_] := Module[{T, L, M},
-    If[tVal < 10^-15, Return[Log[1 / (2 * lVal)]]];
-    
-    (* If t is very large, eta ~ (m-l)/l * Exp[-mt].
-       Log[eta] ~ -mt + Log[(m-l)/l].
-    *)
-    If[tVal > 50,
-        T = Rationalize[tVal, 0]; L = Rationalize[lVal, 0]; M = Rationalize[mVal, 0];
-        Return[N[-M * T + Log[(M - L) / L], 1000]]
-    ];
-    
-    safeLogN[symbolicLnEta, tVal, lVal, mVal]
 ]
 
 (* 4. Input Data & Tables *)
@@ -137,10 +115,9 @@ printTable[title_, func_] := Module[{},
 ]
 
 printTable["ln(beta)", logBetaSym];
-printTable["ln(H1)", logH1Sym];
 printTable["ln(I1)", logI1Sym];
+printTable["ln(H1)", logH1Sym];
 printTable["ln(U)", logUSym];
-printTable["ln(eta)", lnEtaSym];
 
 Print["--- Asymptotics ---"];
 Print["Taylor expansion of beta(t) at t=0: ", Normal[Series[beta[t, l, m], {t, 0, 3}]]];
