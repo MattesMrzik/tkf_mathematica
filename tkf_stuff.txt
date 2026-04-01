@@ -3,12 +3,20 @@ beta[t_, l_, m_] := (1 - Exp[(l - m) t]) / (m - l Exp[(l - m) t])
 N1[t_, l_, m_] := (1 - Exp[-m t] - m beta[t, l, m]) * (1 - l beta[t, l, m])
 N0[t_, l_, m_] := m beta[t, l, m]
 H1[t_, l_, m_] := Exp[-m t] * (1 - l beta[t, l, m])
+I1[t_, l_, m_] := 1 - l beta[t, l, m]
+U[t_, l_, m_] := 1 - Exp[-m t] - m beta[t, l, m]
 
 (* 2. Global Symbolic Simplifications for Stability *)
 constraints = {l > 0, m > 0, l < m, t > 0};
 
 symbolicH1 = FullSimplify[H1[t, l, m], constraints];
 symbolicLogH1 = FullSimplify[Log[symbolicH1], constraints];
+
+symbolicI1 = FullSimplify[I1[t, l, m], constraints];
+symbolicLogI1 = FullSimplify[Log[symbolicI1], constraints];
+
+symbolicU = FullSimplify[U[t, l, m], constraints];
+symbolicLogU = FullSimplify[Log[symbolicU], constraints];
 
 symbolicBeta = FullSimplify[beta[t, l, m], constraints];
 symbolicLogBeta = FullSimplify[Log[symbolicBeta], constraints];
@@ -18,6 +26,8 @@ symbolicLnEta = FullSimplify[Log[N1[t, l, m]] - Log[N0[t, l, m]] - Log[l] - Log[
 
 Print["--- Symbolic Analysis ---"];
 Print["Simplified Log[H1]: ", symbolicLogH1];
+Print["Simplified Log[I1]: ", symbolicLogI1];
+Print["Simplified Log[U]: ", symbolicLogU];
 Print["Simplified Log[beta]: ", symbolicLogBeta];
 Print["Simplified ln(eta): ", symbolicLnEta];
 Print["\n"];
@@ -40,6 +50,29 @@ logH1Sym[tVal_, lVal_, mVal_] := Module[{},
     N[symbolicLogH1 /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
 ]
 
+logI1Sym[tVal_, lVal_, mVal_] := Module[{},
+    N[symbolicLogI1 /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
+]
+
+logUSym[tVal_, lVal_, mVal_] := Module[{exactExpr, val},
+    If[tVal < 10^-15,
+        Log[lVal * mVal * tVal^2 / 2], (* Leading term of Taylor expansion for U at t -> 0 *)
+        exactExpr = symbolicLogU /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]};
+        (* 
+           Block[vars, body] temporarily overrides global settings or variables 
+           only for the duration of the 'body' execution. Here we increase 
+           $MaxExtraPrecision to 1000 to allow Mathematica to work with 
+           extreme internal precision for sensitive log calculations.
+        *)
+        val = Block[{$MaxExtraPrecision = 1000}, N[exactExpr, 1000]];
+        If[Not[NumberQ[val]],
+            (* Fallback if evaluation fails due to numerical issues, just calling the non symbolic fn *)
+            val = N[Log[U[Rationalize[tVal, 0], Rationalize[lVal, 0], Rationalize[mVal, 0]]], 1000]
+        ];
+        val
+    ]
+]
+
 lnEtaSym[tVal_, lVal_, mVal_] := Module[{},
     If[tVal < 10^-15,
         Log[1/(2 * lVal)], (* Limit as t -> 0 *)
@@ -58,7 +91,10 @@ paramPairs = {
 };
 
 (* Table Printing Utility *)
-formatVal[v_] := Module[{vN = N[v, 12], mantissa, exponent},
+formatVal[v_] := Module[{vN, mantissa, exponent},
+    If[Not[NumberQ[v]], Return[ToString[v]]];
+    vN = N[v, 12];
+    If[Not[NumberQ[vN]], Return[ToString[vN]]];
     If[Abs[vN] < 10^-3 || Abs[vN] > 10^5,
         mantissa = MantissaExponent[vN][[1]] * 10;
         exponent = MantissaExponent[vN][[2]] - 1;
@@ -87,7 +123,10 @@ printTable[title_, func_] := Module[{},
 
 printTable["ln(beta)", logBetaSym];
 printTable["ln(H1)", logH1Sym];
+printTable["ln(I1)", logI1Sym];
+printTable["ln(U)", logUSym];
 printTable["ln(eta)", lnEtaSym];
 
 Print["--- Asymptotics ---"];
 Print["Taylor expansion of beta(t) at t=0: ", Normal[Series[beta[t, l, m], {t, 0, 3}]]];
+Print["Taylor expansion of U(t) at t=0: ", Normal[Series[U[t, l, m], {t, 0, 3}]]];
