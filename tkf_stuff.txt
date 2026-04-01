@@ -33,51 +33,66 @@ Print["Simplified ln(eta): ", symbolicLnEta];
 Print["\n"];
 
 (* 3. Stable Evaluation Functions *)
+
 (* 
-   Note on Rationalize[val, 0]: 
-   We convert floating-point inputs (like 0.01) into exact fractions (1/100) before 
-   substituting them into the symbolic formulas. This prevents precision loss 
-   and allows N[..., 1000] to calculate results with true high precision.
+   safeLogN[expr, tVal, lVal, mVal] is a wrapper to handle the transition from 
+   symbolic formulas to high-precision numerical values. Does not approximate except 
+   for returning the result.
+
+   1. It rationalizes decimal inputs into exact fractions to prevent precision loss.
+   2. It substitutes these exact values into the pre-simplified symbolic 'expr'.
+   3. It uses Block to temporarily allow up to 1000 digits of internal 
+      $MaxExtraPrecision for sensitive log calculations.
+   4. It returns Indeterminate if the calculation fails or hits numerical limits, 
+      preventing crashes in the table formatting.
 *)
-logBetaSym[tVal_, lVal_, mVal_] := Module[{},
-    If[tVal < 10^-15,
-        Log[tVal], (* Taylor limit as t -> 0 *)
-        N[symbolicLogBeta /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
-    ]
-]
-
-logH1Sym[tVal_, lVal_, mVal_] := Module[{},
-    N[symbolicLogH1 /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
-]
-
-logI1Sym[tVal_, lVal_, mVal_] := Module[{},
-    N[symbolicLogI1 /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
-]
-
-logUSym[tVal_, lVal_, mVal_] := Module[{exactExpr, val},
-    If[tVal < 10^-15,
-        Log[lVal * mVal * tVal^2 / 2], (* Leading term of Taylor expansion for U at t -> 0 *)
-        exactExpr = symbolicLogU /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]};
-        (* 
-           Block[vars, body] temporarily overrides global settings or variables 
-           only for the duration of the 'body' execution. Here we increase 
-           $MaxExtraPrecision to 1000 to allow Mathematica to work with 
-           extreme internal precision for sensitive log calculations.
-        *)
-        val = Block[{$MaxExtraPrecision = 1000}, N[exactExpr, 1000]];
-        If[Not[NumberQ[val]],
-            (* Fallback if evaluation fails due to numerical issues, just calling the non symbolic fn *)
-            val = N[Log[U[Rationalize[tVal, 0], Rationalize[lVal, 0], Rationalize[mVal, 0]]], 1000]
-        ];
+safeLogN[expr_, tVal_, lVal_, mVal_] := Module[{exactExpr, val, T, L, M},
+    T = Rationalize[tVal, 0];
+    L = Rationalize[lVal, 0];
+    M = Rationalize[mVal, 0];
+    exactExpr = expr /. {t -> T, l -> L, m -> M};
+    
+    val = Block[{$MaxExtraPrecision = 1000}, N[exactExpr, 1000]];
+    
+    If[Not[NumberQ[val]] || Abs[val] == Infinity,
+        Indeterminate,
         val
     ]
 ]
 
-lnEtaSym[tVal_, lVal_, mVal_] := Module[{},
-    If[tVal < 10^-15,
-        Log[1/(2 * lVal)], (* Limit as t -> 0 *)
-        N[symbolicLnEta /. {t -> Rationalize[tVal, 0], l -> Rationalize[lVal, 0], m -> Rationalize[mVal, 0]}, 1000]
-    ]
+logBetaSym[tVal_, lVal_, mVal_] := Module[{},
+    safeLogN[symbolicLogBeta, tVal, lVal, mVal]
+]
+
+logH1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogH1, tVal, lVal, mVal]
+logI1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogI1, tVal, lVal, mVal]
+
+logUSym[tVal_, lVal_, mVal_] := Module[{T, L, M},
+    If[tVal < 10^-15, Return[Log[lVal * mVal * tVal^2 / 2]]];
+    
+    (* If t is very large, U ~ (m-l)/m * Exp[(l-m)t]. 
+       Log[U] ~ (l-m)t + Log[(m-l)/m].
+    *)
+    If[tVal > 50,
+        T = Rationalize[tVal, 0]; L = Rationalize[lVal, 0]; M = Rationalize[mVal, 0];
+        Return[N[(L - M) * T + Log[(M - L) / M], 1000]]
+    ];
+    
+    safeLogN[symbolicLogU, tVal, lVal, mVal]
+]
+
+lnEtaSym[tVal_, lVal_, mVal_] := Module[{T, L, M},
+    If[tVal < 10^-15, Return[Log[1 / (2 * lVal)]]];
+    
+    (* If t is very large, eta ~ (m-l)/l * Exp[-mt].
+       Log[eta] ~ -mt + Log[(m-l)/l].
+    *)
+    If[tVal > 50,
+        T = Rationalize[tVal, 0]; L = Rationalize[lVal, 0]; M = Rationalize[mVal, 0];
+        Return[N[-M * T + Log[(M - L) / L], 1000]]
+    ];
+    
+    safeLogN[symbolicLnEta, tVal, lVal, mVal]
 ]
 
 (* 4. Input Data & Tables *)
