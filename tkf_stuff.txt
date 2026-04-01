@@ -27,8 +27,6 @@ Print["Simplified Log[H1]: ", symbolicLogH1];
 Print["Simplified Log[U]: ", symbolicLogU];
 Print["\n"];
 
-(* 3. Stable Evaluation Functions *)
-
 (* 
    safeLogN[expr, tVal, lVal, mVal] is a wrapper to handle the transition from 
    symbolic formulas to high-precision numerical values. Does not approximate except 
@@ -59,18 +57,18 @@ logBetaSym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogBeta, tVal, lVal, mVal]
 logH1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogH1, tVal, lVal, mVal]
 logI1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogI1, tVal, lVal, mVal]
 
-logUSym[tVal_, lVal_, mVal_] := Module[{T, L, M},
-    If[tVal < 10^-15, Return[Log[lVal * mVal * tVal^2 / 2]]];
+useApproximation = True; (* Toggle for symbolic limits/expansions at extreme scales *)
+logUSym[tVal_, lVal_, mVal_] := Module[{res, T, L, M},
+    res = safeLogN[symbolicLogU, tVal, lVal, mVal];
     
-    (* If t is very large, U ~ (m-l)/m * Exp[(l-m)t]. 
-       Log[U] ~ (l-m)t + Log[(m-l)/m].
-    *)
-    If[tVal > 50,
+    If[res === Indeterminate && useApproximation,
+        (* Fallback to large time approximation *)
+        Print["Using large time approximation"];
         T = Rationalize[tVal, 0]; L = Rationalize[lVal, 0]; M = Rationalize[mVal, 0];
-        Return[N[(L - M) * T + Log[(M - L) / M], 1000]]
+        res = N[(L - M) * T + Log[(M - L) / M], 1000]
     ];
     
-    safeLogN[symbolicLogU, tVal, lVal, mVal]
+    res
 ]
 
 (* 4. Input Data & Tables *)
