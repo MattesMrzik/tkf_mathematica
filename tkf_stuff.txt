@@ -21,6 +21,7 @@ symbolicU = FullSimplify[U[t, l, m], constraints];
 symbolicLogU = FullSimplify[Log[symbolicU], constraints];
 
 (* Numerically stable symbolic form of Log[U] to avoid catastrophic cancellation (1 - approx(1)) *)
+(* This was found by prompting opencode to make the FullSimplify of Log[U] more robust U(t) = 1 - e^{-mt} - m \frac{1 - e^{(l-m)t}}{m - l e^{(l-m)t}} *)
 symbolicLogUStable = (l - m) t + Log[(m - l) - m*Exp[-l*t] + l*Exp[-m*t]] - Log[m - l*Exp[(l - m) t]];
 
 Print["--- Symbolic Analysis ---"];
