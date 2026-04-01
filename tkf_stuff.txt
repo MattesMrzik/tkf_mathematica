@@ -23,6 +23,12 @@ Print["Simplified ln(eta): ", symbolicLnEta];
 Print["\n"];
 
 (* 3. Stable Evaluation Functions *)
+(* 
+   Note on Rationalize[val, 0]: 
+   We convert floating-point inputs (like 0.01) into exact fractions (1/100) before 
+   substituting them into the symbolic formulas. This prevents precision loss 
+   and allows N[..., 1000] to calculate results with true high precision.
+*)
 logBetaSym[tVal_, lVal_, mVal_] := Module[{},
     If[tVal < 10^-15,
         Log[tVal], (* Taylor limit as t -> 0 *)
