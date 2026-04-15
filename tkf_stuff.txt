@@ -24,6 +24,15 @@ symbolicLogU = FullSimplify[Log[symbolicU], constraints];
 (* This was found by prompting opencode to make the FullSimplify of Log[U] = Log[1 - e^{-mt} - m \frac{1 - e^{(l-m)t}}{m - l e^{(l-m)t}}] more robust *)
 symbolicLogUStable = (l - m) t + Log[(m - l) - m*Exp[-l*t] + l*Exp[-m*t]] - Log[m - l*Exp[(l - m) t]];
 
+(* Analytical proof that symbolicLogU == symbolicLogUStable *)
+Print["--- Analytical Proof ---"];
+Print["Log[U] simplified: ", symbolicLogU];
+Print["Log[U] stable form: ", symbolicLogUStable];
+proof = FullSimplify[Exp[symbolicLogU - symbolicLogUStable], constraints];
+Print["Exp[Log[U] - Log[U]stable] = ", proof];
+Print["The expressions are analytically equal: ", proof === 1];
+Print["\n"];
+
 Print["--- Symbolic Analysis ---"];
 Print["Simplified beta: ", symbolicBeta];
 Print["Simplified I1: ", symbolicI1];
@@ -129,7 +138,6 @@ printTable[title_, func_] := Module[{},
     , {pair, paramPairs}];
     Print["\n"];
 ]
-
 
 printTable["ln(beta)", logBetaSym];
 printTable["ln(I1)", logI1Sym];
