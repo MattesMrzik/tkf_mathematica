@@ -20,19 +20,6 @@ symbolicLogH1 = FullSimplify[Log[symbolicH1], constraints];
 symbolicU = FullSimplify[U[t, l, m], constraints];
 symbolicLogU = FullSimplify[Log[symbolicU], constraints];
 
-(* Numerically stable symbolic form of Log[U] to avoid catastrophic cancellation (1 - approx(1)) *)
-(* This was found by prompting opencode to make the FullSimplify of Log[U] = Log[1 - e^{-mt} - m \frac{1 - e^{(l-m)t}}{m - l e^{(l-m)t}}] more robust *)
-symbolicLogUStable = (l - m) t + Log[(m - l) - m*Exp[-l*t] + l*Exp[-m*t]] - Log[m - l*Exp[(l - m) t]];
-
-(* Analytical proof that symbolicLogU == symbolicLogUStable *)
-Print["--- Analytical Proof ---"];
-Print["Log[U] simplified: ", symbolicLogU];
-Print["Log[U] stable form: ", symbolicLogUStable];
-proof = FullSimplify[Exp[symbolicLogU - symbolicLogUStable], constraints];
-Print["Exp[Log[U] - Log[U]stable] = ", proof];
-Print["The expressions are analytically equal: ", proof === 1];
-Print["\n"];
-
 Print["--- Symbolic Analysis ---"];
 Print["Simplified beta: ", symbolicBeta];
 Print["Simplified I1: ", symbolicI1];
@@ -45,6 +32,19 @@ Print["Simplified Log[beta]: ", symbolicLogBeta];
 Print["Simplified Log[I1]: ", symbolicLogI1];
 Print["Simplified Log[H1]: ", symbolicLogH1];
 Print["Simplified Log[U]: ", symbolicLogU];
+Print["\n"];
+
+(* Numerically stable symbolic form of Log[U] to avoid catastrophic cancellation (1 - approx(1)) *)
+(* This was found by prompting opencode to make the FullSimplify of Log[U] = Log[1 - e^{-mt} - m \frac{1 - e^{(l-m)t}}{m - l e^{(l-m)t}}] more robust *)
+symbolicLogUStable = (l - m) t + Log[(m - l) - m*Exp[-l*t] + l*Exp[-m*t]] - Log[m - l*Exp[(l - m) t]];
+
+(* Analytical proof that symbolicLogU == symbolicLogUStable *)
+Print["--- Analytical Proof ---"];
+Print["Log[U] simplified: ", symbolicLogU];
+Print["Log[U] stable form: ", symbolicLogUStable];
+proof = FullSimplify[Exp[symbolicLogU - symbolicLogUStable], constraints];
+Print["Exp[Log[U] - Log[U]stable] = ", proof];
+Print["The expressions are analytically equal: ", proof === 1];
 Print["\n"];
 
 (* 
