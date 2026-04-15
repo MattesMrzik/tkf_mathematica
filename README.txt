@@ -1,3 +1,10 @@
+--- Analytical Proof ---
+Log[U] simplified: Log[1 - E^(-(m*t)) - ((-1 + E^((l - m)*t))*m)/(E^((l - m)*t)*l - m)]
+Log[U] stable form: (l - m)*t - Log[-(E^((l - m)*t)*l) + m] + Log[-l + l/E^(m*t) + m - m/E^(l*t)]
+Exp[Log[U] - Log[U]stable] = 1
+The expressions are analytically equal: True
+
+
 --- Symbolic Analysis ---
 Simplified beta: (l + (l - m)/(-1 + E^((l - m)*t)))^(-1)
 Simplified I1: (l - m)/(E^((l - m)*t)*l - m)
