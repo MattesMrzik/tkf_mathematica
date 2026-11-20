@@ -182,6 +182,11 @@ extraCases = {
     {1.0*^8, 100000000.00000001, 1.0*^-8},        (* x=1,     y~1.5e-16 *)
     {1.0*^10, 10000000000.000002, 1.0*^-8},       (* x=100,   y~1.9e-14 *)
 
+    (* y = (mu-lambda)*t large enough for the closed ln_g branch, while
+       delta/lambda is small enough for u to take the stable (ln_b_stable)
+       path, so that this branch is exercised end-to-end. *)
+    {1.0, 1.00000001, 1.0*^10},                   (* x=1e10,  y~100 *)
+
     (* very small t *)
     {1.0, 1.0000000000000002, 1.0*^-20},          (* x~1e-20, y~2.2e-36 *)
     {1.0, 1.0000000000000002, 1.0*^-50},          (* x~1e-50, y~2.2e-66 *)
