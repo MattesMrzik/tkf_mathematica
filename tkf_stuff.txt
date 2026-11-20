@@ -234,9 +234,10 @@ formatVal[v_, prec_: 16] := Module[{vN, mantissa, exponent},
 
 printTable[title_, func_, cases_] := Module[{valueDigits = 16},
     Print["--- ", title, " ---"];
-    Print["| Time          | Lambda                     | Mu                         | Value                  | Warn   |"];
-    Print["|---------------|----------------------------|----------------------------|------------------------|--------|"];
+    Print["| Time          | Lambda                     | Mu                         | Value                  |"];
+    Print["|---------------|----------------------------|----------------------------|------------------------|"];
     Do[
+        c = cases[[i]];
         lVal = c[[1]]; mVal = c[[2]]; tVal = c[[3]];
         val = func[tVal, lVal, mVal];
         tStr = StringPadRight[formatVal[tVal, 4], 13];
@@ -245,7 +246,7 @@ printTable[title_, func_, cases_] := Module[{valueDigits = 16},
         lStr = StringPadRight[formatVal[lVal, 18], 26];
         mStr = StringPadRight[formatVal[mVal, 18], 26];
         valStr = StringPadRight[formatVal[val, valueDigits], 24];
-        (* Nonzero: warn on relative error (precision).
+        (* Nonzero: check relative error (precision).
            val == 0 (including underflow): relative error is undefined, so
            instead require absolute error < 10^-valueDigits, i.e.
            Accuracy[val] > valueDigits. *)
@@ -255,9 +256,15 @@ printTable[title_, func_, cases_] := Module[{valueDigits = 16},
             val != 0 && Precision[val] < valueDigits, "LOW-P",
             True, ""
         ];
-        Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", valStr,
-              " | ", StringPadRight[warn, 6], " |"];
-    , {c, cases}];
+        (* A failing case aborts the whole script with a non-zero exit code
+           instead of being marked in a table column. *)
+        If[warn =!= "",
+            Print["ERROR: ", title, " case ", i, " (", warn, ") at t = ", tVal,
+                  ", lambda = ", lVal, ", mu = ", mVal];
+            Exit[1]
+        ];
+        Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", valStr, " |"];
+    , {i, Length[cases]}];
     Print["\n"];
 ]
 
