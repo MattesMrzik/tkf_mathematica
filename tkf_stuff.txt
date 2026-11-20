@@ -1,3 +1,5 @@
+(* run with wolframscript -file tkf_stuff.txt *)
+
 (* 1. Core Parameters & Definitions *)
 beta[t_, l_, m_] := (1 - Exp[(l - m) t]) / (m - l Exp[(l - m) t])
 N0[t_, l_, m_] := m beta[t, l, m]
@@ -47,27 +49,37 @@ Print["Exp[Log[U] - Log[U]stable] = ", proof];
 Print["The expressions are analytically equal: ", proof === 1];
 Print["\n"];
 
+Print["--- Taylor ---"];
+(* Normal converts a series expansion (returned by Series) into a regular polynomial/expression by dropping the O[t] remainder term. *)
+Print["Taylor expansion of ln(beta(t)) at t=0: ", Normal[Series[Log[beta[t, l, m]], {t, 0, 3}]]];
+
 (* 
    safeLogN[expr, tVal, lVal, mVal] is a wrapper to handle the transition from 
    symbolic formulas to high-precision numerical values. Does not approximate except 
    for returning the result.
 
-   1. It rationalizes decimal inputs into exact fractions to prevent precision loss.
+   1. It converts the inputs to their exact binary values via SetPrecision[.., Infinity].
+      (Rationalize[tVal, 0] must NOT be used here: it maps numbers that differ only in
+      their last bits -- e.g. two adjacent doubles for lambda and mu -- to the same
+      rational, which can turn beta and therefore ln(beta) into 0/0 and Indeterminate.)
    2. It substitutes these exact values into the pre-simplified symbolic 'expr'.
    3. It uses Block to temporarily allow up to 1000 digits of internal 
       $MaxExtraPrecision for sensitive log calculations.
-   4. It returns Indeterminate if the calculation fails or hits numerical limits, 
-      preventing crashes in the table formatting.
+   4. It returns Indeterminate if the calculation fails, hits numerical limits,
+      or comes back with fewer than 900 of the requested 1000 digits of precision.
+      The precision check is essential: cancellation can silently consume digits,
+      and a finite but low-precision result would otherwise pass through and be
+      mistaken for a converged value.
 *)
 safeLogN[expr_, tVal_, lVal_, mVal_] := Module[{exactExpr, val, T, L, M},
-    T = Rationalize[tVal, 0];
-    L = Rationalize[lVal, 0];
-    M = Rationalize[mVal, 0];
+    T = SetPrecision[tVal, Infinity];
+    L = SetPrecision[lVal, Infinity];
+    M = SetPrecision[mVal, Infinity];
     exactExpr = expr /. {t -> T, l -> L, m -> M};
     
     val = Block[{$MaxExtraPrecision = 1000}, N[exactExpr, 1000]];
     
-    If[Not[NumberQ[val]] || Abs[val] == Infinity,
+    If[Not[NumberQ[val]] || Abs[val] == Infinity || Precision[val] < 900,
         Indeterminate,
         val
     ]
@@ -76,6 +88,11 @@ safeLogN[expr_, tVal_, lVal_, mVal_] := Module[{exactExpr, val, T, L, M},
 logBetaSym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogBeta, tVal, lVal, mVal]
 logH1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogH1, tVal, lVal, mVal]
 logI1Sym[tVal_, lVal_, mVal_] := safeLogN[symbolicLogI1, tVal, lVal, mVal]
+
+(* Exact high-precision logs of the inputs themselves. Log[machineNumber] would
+   only carry machine precision and would truncate the surrounding 1000-digit sum. *)
+logMSym[mVal_] := Block[{$MaxExtraPrecision = 1000}, N[Log[SetPrecision[mVal, Infinity]], 1000]]
+logLSym[lVal_] := Block[{$MaxExtraPrecision = 1000}, N[Log[SetPrecision[lVal, Infinity]], 1000]]
 
 logUSym[tVal_, lVal_, mVal_] := Module[{res, stableVal},
     res = Quiet[safeLogN[symbolicLogU, tVal, lVal, mVal]];
@@ -91,10 +108,13 @@ logUSym[tVal_, lVal_, mVal_] := Module[{res, stableVal},
     stableVal
 ]
 
-logN0Sym[tVal_, lVal_, mVal_] := logBetaSym[tVal, lVal, mVal] + Log[mVal]
-Eta[t_, l_, m_] := logUSym[t, l, m] + logI1Sym[t, l, m] - Log[m] - Log[l] - 2* logBetaSym[t, l, m]
+logN0Sym[tVal_, lVal_, mVal_] := logBetaSym[tVal, lVal, mVal] + logMSym[mVal]
+Eta[t_, l_, m_] := logUSym[t, l, m] + logI1Sym[t, l, m] - logMSym[m] - logLSym[l] - 2* logBetaSym[t, l, m]
 
 (* 4. Input Data & Tables *)
+
+timeJustAboveShortTimeRustTaylorThreshold = 1.001*10^-5;
+
 timePoints = {10^-16, 10^-8, 1.0, 50.0, 100.0, 500.0};
 paramPairs = {
     {0.0001, 0.0001001},  (* Extremely small lambda, mu, tiny difference *)
@@ -105,47 +125,126 @@ paramPairs = {
     {4.999, 100.0},       (* Specific case from user *)
     {99.999, 100.0},      (* Large lambda, mu, close *)
     {10.0, 1000.0},       (* Very large mu *)
-    {999.999, 1000.0}     (* Very large lambda, mu, very close *)
+    {999.999, 1000.0},    (* Very large lambda, mu, very close *)
+
+    (* lambda ~ mu, including separations of a single ulp.  These are the
+       regimes where a naive f64 evaluation loses all significant digits. *)
+    {0.09999999999999999, 0.1},                  (* one ulp below 0.1 *)
+    {0.9999999999999999, 1.0},                   (* one ulp below 1 *)
+    {9.999999999999998, 10.0},                   (* one ulp below 10 *)
+    {999.9999999999999, 1000.0}                  (* one ulp below 1000 *)
 };
+
+(* Cartesian product of every parameter pair with every time point. *)
+paramTimeCases = Flatten[
+    Table[{pair[[1]], pair[[2]], tVal}, {pair, paramPairs}, {tVal, timePoints}],
+    1
+];
+
+(* Explicit {lambda, mu, time} triples for cases tied to one particular time. *)
+extraCases = {
+    (* Threshold probes for the Rust Taylor branches:
+       ln_h switches at x = lambda*t = 1e-2, ln_g at y = (mu-lambda)*t = 1e-2.
+
+       x = y = 1e-2 at several time scales, sorted by time. *)
+    {1.0*^6, 2.0*^6, 1.0*^-8},           (* x = y = 1e-2 *)
+    {0.01, 0.02, 1.0},                   (* x = y = 1e-2 *)
+    {0.0002, 0.0004, 50.0},              (* x = y = 1e-2 *)
+    {0.0001, 0.0002, 100.0},             (* x = y = 1e-2 *)
+    {0.00002, 0.00004, 500.0},           (* x = y = 1e-2 *)
+
+    (* One-ulp neighbours of the t=1 corner x = y = 1e-2: the full 2x2. *)
+    {0.009999999999999998, 0.019999999999999997, 1.0}, (* x, y both just below *)
+    {0.009999999999999998, 0.02, 1.0},                 (* x below, y above *)
+    {0.010000000000000002, 0.02, 1.0},                 (* x above, y below *)
+    {0.010000000000000002, 0.020000000000000004, 1.0}, (* x, y both just above *)
+
+    (* x = 1: h uses the exp branch; only y crosses its threshold. *)
+    {1.0, 1.0099999999999998, 1.0},      (* y just below 1e-2 *)
+    {1.0, 1.0100000000000002, 1.0},      (* y just above 1e-2 *)
+
+    (* lambda ~ mu with small t: y = (mu-lambda)t is tiny, while x = lambda t
+       spans from deep below to well above the ln_h threshold at 1e-2. *)
+
+    (* same scale, x crossing 1e-2 *)
+    {1.0*^6, 1000000.0000000001, 1.0*^-6},    (* x=1,     y~1.2e-10 *)
+    {1.0*^6, 1000000.0000000001, 1.0*^-8},    (* x=1e-2,  y~1.2e-18 *)
+    {1.0*^6, 1000000.0000000001, 1.0*^-10},   (* x=1e-4,  y~1.2e-20 *)
+
+    (* one-ulp-separated pairs at small t *)
+    {1.0*^-8, 1.0000000000000002*^-8, 1.0*^-8},   (* x~1e-16, y~1.7e-32 *)
+    {0.1, 0.10000000000000002, 1.0*^-16},         (* x~1e-17, y~1.4e-33 *)
+    {1.0, 1.0000000000000002, 1.0*^-16},          (* x~1e-16, y~2.2e-32 *)
+    {10.0, 10.000000000000002, 1.0*^-16},         (* x~1e-15, y~1.8e-31 *)
+    {1000.0, 1000.0000000000001, 1.0*^-16},       (* x~1e-13, y~1.1e-29 *)
+
+    (* larger x with tiny y *)
+    {1.0*^8, 100000000.00000001, 1.0*^-8},        (* x=1,     y~1.5e-16 *)
+    {1.0*^10, 10000000000.000002, 1.0*^-8},       (* x=100,   y~1.9e-14 *)
+
+    (* very small t *)
+    {1.0, 1.0000000000000002, 1.0*^-20},          (* x~1e-20, y~2.2e-36 *)
+    {1.0, 1.0000000000000002, 1.0*^-50}           (* x~1e-50, y~2.2e-66 *)
+};
+
+(* One flat list of {lambda, mu, time} triples used by every table.
+   Join, not DeleteDuplicates: SameQ treats adjacent machine doubles as equal,
+   which would silently drop the one-ulp boundary cases above. *)
+allCases = Join[paramTimeCases, extraCases];
 
 (* Table Utility *)
 formatVal[v_, prec_: 16] := Module[{vN, mantissa, exponent},
     If[Not[NumberQ[v]], Return[ToString[v]]];
-    vN = N[v, prec + 4];
+    (* SetPrecision (not N) so that machine numbers can be displayed with more
+       than their built-in ~16 digits; needed to distinguish lambda and mu that
+       differ by one ulp. High-precision inputs are unaffected. *)
+    vN = SetPrecision[v, prec + 4];
     If[Not[NumberQ[vN]], Return[ToString[vN]]];
+    If[vN == 0, Return[ToString[NumberForm[0, {prec + 4, prec}]]]];
     If[Abs[vN] < 10^-3 || Abs[vN] > 10^5,
-        mantissa = MantissaExponent[vN][[1]] * 10;
-        exponent = MantissaExponent[vN][[2]] - 1;
+        (* Normalize to 1 <= |mantissa| < 10; MantissaExponent uses a different
+           mantissa range for machine numbers and for arbitrary-precision numbers. *)
+        {mantissa, exponent} = MantissaExponent[vN];
+        While[Abs[mantissa] >= 10, mantissa = mantissa/10; exponent = exponent + 1];
+        While[Abs[mantissa] < 1, mantissa = mantissa*10; exponent = exponent - 1];
         ToString[NumberForm[mantissa, {prec + 4, prec}]] <> "e" <> ToString[exponent],
         ToString[NumberForm[vN, {prec + 4, prec}]]
     ]
 ]
 
-printTable[title_, func_] := Module[{},
+printTable[title_, func_, cases_] := Module[{valueDigits = 16},
     Print["--- ", title, " ---"];
-    Print["| Time          | Lambda       | Mu           | Value                  |"];
-    Print["|---------------|--------------|--------------|------------------------|"];
+    Print["| Time          | Lambda                     | Mu                         | Value                  | Warn   |"];
+    Print["|---------------|----------------------------|----------------------------|------------------------|--------|"];
     Do[
-        lVal = pair[[1]]; mVal = pair[[2]];
-        Do[
-            val = func[tVal, lVal, mVal];
-            tStr = StringPadRight[formatVal[tVal, 4], 13];
-            lStr = StringPadRight[formatVal[lVal, 7], 12];
-            mStr = StringPadRight[formatVal[mVal, 7], 12];
-            valStr = StringPadRight[formatVal[val, 16], 24];
-            Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", valStr, " |"];
-        , {tVal, timePoints}];
-    , {pair, paramPairs}];
+        lVal = c[[1]]; mVal = c[[2]]; tVal = c[[3]];
+        val = func[tVal, lVal, mVal];
+        tStr = StringPadRight[formatVal[tVal, 4], 13];
+        (* 18 decimal places: enough to distinguish one-ulp-separated
+           lambda/mu even for values near 1e-2. *)
+        lStr = StringPadRight[formatVal[lVal, 18], 26];
+        mStr = StringPadRight[formatVal[mVal, 18], 26];
+        valStr = StringPadRight[formatVal[val, valueDigits], 24];
+        (* Nonzero: warn on relative error (precision).
+           val == 0 (including underflow): relative error is undefined, so
+           instead require absolute error < 10^-valueDigits, i.e.
+           Accuracy[val] > valueDigits. *)
+        warn = Which[
+            !NumberQ[val], "BAD",
+            val == 0 && Accuracy[val] <= valueDigits, "LOW-A",
+            val != 0 && Precision[val] < valueDigits, "LOW-P",
+            True, ""
+        ];
+        Print["| ", tStr, " | ", lStr, " | ", mStr, " | ", valStr,
+              " | ", StringPadRight[warn, 6], " |"];
+    , {c, cases}];
     Print["\n"];
 ]
 
-printTable["ln(beta)", logBetaSym];
-printTable["ln(I1)", logI1Sym];
-printTable["ln(H1)", logH1Sym];
-printTable["ln(N0)", logN0Sym];
-printTable["ln(U)", logUSym];
-printTable["Eta", Eta];
-
-Print["--- Taylor ---"];
-(* Normal converts a series expansion (returned by Series) into a regular polynomial/expression by dropping the O[t] remainder term. *)
-Print["Taylor expansion of ln(beta(t)) at t=0: ", Normal[Series[Log[beta[t, l, m]], {t, 0, 3}]]];
+printTable["ln(beta)", logBetaSym, allCases];
+printTable["ln(I1)", logI1Sym, allCases];
+printTable["ln(H1)", logH1Sym, allCases];
+printTable["ln(N0)", logN0Sym, allCases];
+printTable["ln(U)", logUSym, allCases];
+(* eta is also in log space *)
+printTable["Eta", Eta, allCases];
