@@ -234,8 +234,8 @@ formatVal[v_, prec_: 16] := Module[{vN, mantissa, exponent},
 
 printTable[title_, func_, cases_] := Module[{valueDigits = 16},
     Print["--- ", title, " ---"];
-    Print["| Time          | Lambda                     | Mu                         | Value                  |"];
-    Print["|---------------|----------------------------|----------------------------|------------------------|"];
+    Print["| Time          | Lambda                     | Mu                         | Value                    |"];
+    Print["|---------------|----------------------------|----------------------------|--------------------------|"];
     Do[
         c = cases[[i]];
         lVal = c[[1]]; mVal = c[[2]]; tVal = c[[3]];
