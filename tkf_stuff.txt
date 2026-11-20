@@ -52,6 +52,7 @@ Print["\n"];
 Print["--- Taylor ---"];
 (* Normal converts a series expansion (returned by Series) into a regular polynomial/expression by dropping the O[t] remainder term. *)
 Print["Taylor expansion of ln(beta(t)) at t=0: ", Normal[Series[Log[beta[t, l, m]], {t, 0, 3}]]];
+Print[""];
 
 (* 
    safeLogN[expr, tVal, lVal, mVal] is a wrapper to handle the transition from 

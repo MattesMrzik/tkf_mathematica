@@ -21,6 +21,7 @@ The expressions are analytically equal: True
 
 --- Taylor ---
 Taylor expansion of ln(beta(t)) at t=0: ((-l - m)*t)/2 + ((l^2 + 10*l*m + m^2)*t^2)/24 + ((-(l^2*m) - l*m^2)*t^3)/6 + Log[t]
+
 --- ln(beta) ---
 | Time          | Lambda                     | Mu                         | Value                    |
 |---------------|----------------------------|----------------------------|--------------------------|
