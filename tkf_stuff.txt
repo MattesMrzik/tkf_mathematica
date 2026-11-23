@@ -114,26 +114,23 @@ Eta[t_, l_, m_] := logUSym[t, l, m] + logI1Sym[t, l, m] - logMSym[m] - logLSym[l
 
 (* 4. Input Data & Tables *)
 
-timeJustAboveShortTimeRustTaylorThreshold = 1.001*10^-5;
-
-timePoints = {10^-16, 10^-8, 1.0, 10.0};
+timePoints = {1.0*^-30, 1.0*^-16, 1.0*^-8, 1.0};
 paramPairs = {
-    {0.0001, 0.0001001},  (* Extremely small lambda, mu, tiny difference *)
-    {0.01, 0.0100001},    (* Small lambda, mu *)
-    {0.01, 5.0},          (* Small lambda, large mu *)
-    {4.9999, 5.0},        (* Close lambda, mu *)
-    {1.0, 100.0},         (* Large gap *)
-    {4.999, 100.0},       (* Specific case from user *)
-    {99.999, 100.0},      (* Large lambda, mu, close *)
-    {10.0, 1000.0},       (* Very large mu *)
-    {999.999, 1000.0},    (* Very large lambda, mu, very close *)
+    (* small lambda/mu, including one-ulp separations *)
+    {1.0*^-16, 1.0000000000000001*^-16},
+    {1.0*^-12, 1.0000000000000002*^-12},
+    {1.0*^-8, 1.0000000000000002*^-8},
+    {1.0*^-4, 1.0001*^-4},
 
-    (* lambda ~ mu, including separations of a single ulp.  These are the
-       regimes where a naive f64 evaluation loses all significant digits. *)
-    {0.09999999999999999, 0.1},                  (* one ulp below 0.1 *)
-    {0.9999999999999999, 1.0},                   (* one ulp below 1 *)
-    {9.999999999999998, 10.0},                   (* one ulp below 10 *)
-    {999.9999999999999, 1000.0}                  (* one ulp below 1000 *)
+    (* moderate small parameters *)
+    {0.01, 0.0100001},
+    {0.1, 0.10000001},
+
+    (* close and non-close pairs around 1 *)
+    {1.0, 1.00000001},
+    {1.0, 1.5},
+    {1.0, 2.0},
+    {10.0, 10.00000001}
 };
 
 (* Cartesian product of every parameter pair with every time point. *)
@@ -142,75 +139,40 @@ paramTimeCases = Flatten[
     1
 ];
 
-(* Explicit {lambda, mu, time} triples for cases tied to one particular time. *)
+(* Explicit {lambda, mu, time} triples for branch boundaries. *)
 extraCases = {
-    (* Threshold probes for the Rust Taylor branches:
-       ln_h switches at x = lambda*t = 1e-2, ln_g at y = (mu-lambda)*t = 1e-2.
+    (* ln_beta / ln1mexp: reachable branch combinations and boundaries.
+       The expo-low/ratio-low Case 1 pair {1, 2} is already in paramPairs. *)
+    {1.0*^-8, 1.0, 1.0*^-16},                (* expo high, ratio low *)
+    {1.0, 1.0 + 1.0*^-12, 1.0*^-13},         (* expo high, ratio high *)
+    {1.0, 2.0, 0.6931471805599453},          (* expo boundary *)
+    {1.0, 2.0, 0.6931471805599454},          (* expo just below *)
+    {1.0, 1.1, 5.978370007556199},           (* ratio boundary *)
+    {1.0, 1.1, 5.9783700075562},             (* ratio just below *)
 
-       x = y = 1e-2 at several time scales, sorted by time. *)
-    {1.0*^6, 2.0*^6, 1.0*^-8},           (* x = y = 1e-2 *)
-    {0.01, 0.02, 1.0},                   (* x = y = 1e-2 *)
-    {0.0002, 0.0004, 50.0},              (* x = y = 1e-2 *)
-    {0.0001, 0.0002, 100.0},             (* x = y = 1e-2 *)
-    {0.00002, 0.00004, 500.0},           (* x = y = 1e-2 *)
+    (* ln_i1: threshold at ln_beta + ln(lambda) = -ln(2) *)
+    {1.0, 1.1, 10.0},                        (* x >= -ln2 *)
+    {1.0, 1.5, 1.3862943611198904},          (* boundary just below *)
+    {1.0, 1.5, 1.3862943611198906},          (* boundary at/above *)
 
-    (* One-ulp neighbours of the t=1 corner x = y = 1e-2: the full 2x2. *)
-    {0.009999999999999998, 0.019999999999999997, 1.0}, (* x, y both just below *)
-    {0.009999999999999998, 0.02, 1.0},                 (* x below, y above *)
-    {0.010000000000000002, 0.02, 1.0},                 (* x above, y below *)
-    {0.010000000000000002, 0.020000000000000004, 1.0}, (* x, y both just above *)
+    (* u: Case 1 / Case 2 boundary *)
+    {999.9999822364338, 1000.0, 600.0},      (* Case 2, just below R *)
+    {999.9999822364293, 1000.0, 600.0},      (* Case 1, just above R *)
 
-    (* x = 1: h uses the exp branch; only y crosses its threshold. *)
-    {1.0, 1.0099999999999998, 1.0},      (* y just below 1e-2 *)
-    {1.0, 1.0100000000000002, 1.0},      (* y just above 1e-2 *)
+    (* ln_h threshold x = lambda*t = 1e-2, inside u Case 2 *)
+    {999.9999999999999, 1000.0, 9.999999999999999*^-6}, (* just below *)
+    {999.9999999999999, 1000.0, 1.0*^-5},               (* exactly 1e-2 *)
+    {999.9999999999999, 1000.0, 1.0000000000000003*^-5},(* just above *)
 
-    (* lambda ~ mu with small t: y = (mu-lambda)t is tiny, while x = lambda t
-       spans from deep below to well above the ln_h threshold at 1e-2. *)
+    (* ln_g threshold y = (mu-lambda)*t = 1e-2, inside u Case 2 *)
+    {999.9999833333355, 1000.0, 600.0},      (* y just below 1e-2 *)
+    {999.9999833333322, 1000.0, 600.0},      (* y just above 1e-2 *)
 
-    (* same scale, x crossing 1e-2 *)
-    {1.0*^6, 1000000.0000000001, 1.0*^-6},    (* x=1,     y~1.2e-10 *)
-    {1.0*^6, 1000000.0000000001, 1.0*^-8},    (* x=1e-2,  y~1.2e-18 *)
-    {1.0*^6, 1000000.0000000001, 1.0*^-10},   (* x=1e-4,  y~1.2e-20 *)
-
-    (* one-ulp-separated pairs at small t *)
-    {1.0*^-8, 1.0000000000000002*^-8, 1.0*^-8},   (* x~1e-16, y~1.7e-32 *)
-    {0.1, 0.10000000000000002, 1.0*^-16},         (* x~1e-17, y~1.4e-33 *)
-    {1.0, 1.0000000000000002, 1.0*^-16},          (* x~1e-16, y~2.2e-32 *)
-    {10.0, 10.000000000000002, 1.0*^-16},         (* x~1e-15, y~1.8e-31 *)
-    {1000.0, 1000.0000000000001, 1.0*^-16},       (* x~1e-13, y~1.1e-29 *)
-
-    (* larger x with tiny y *)
-    {1.0*^8, 100000000.00000001, 1.0*^-8},        (* x=1,     y~1.5e-16 *)
-    {1.0*^10, 10000000000.000002, 1.0*^-8},       (* x=100,   y~1.9e-14 *)
-
-    (* y = (mu-lambda)*t large enough for the closed ln_g branch, while
-       delta/lambda is small enough for u to take the stable (ln_b_stable)
-       path, so that this branch is exercised end-to-end. *)
-    {1.0, 1.00000001, 1.0*^10},                   (* x=1e10,  y~100 *)
-
-    (* very small t *)
-    {1.0, 1.0000000000000002, 1.0*^-20},          (* x~1e-20, y~2.2e-36 *)
-    {1.0, 1.0000000000000002, 1.0*^-50},          (* x~1e-50, y~2.2e-66 *)
-
-    (* smaller t with varied lambda/mu scales *)
-    {1.0*^-12, 1.0000000000000002*^-12, 1.0*^-12},  (* all ~1e-12, close *)
-    {1.0*^-8, 1.0000000000000002*^-8, 1.0*^-16},    (* lambda, mu ~1e-8; t smaller *)
-    {1.0*^-16, 1.0000000000000001*^-16, 1.0*^-16},  (* all ~1e-16, close *)
-    {1.0*^-16, 1.0*^-12, 1.0*^-16},                 (* lambda 1e-16, mu 1e-12, far *)
-    {1.0*^-8, 1.0*^-4, 1.0*^-16},                   (* lambda 1e-8, mu 1e-4, far *)
-    {1.0*^-8, 1.00000001*^-8, 1.0*^-16},            (* close, delta=1e-16 *)
-    {1.0*^-4, 1.0*^-2, 1.0*^-20},                   (* lambda 1e-4, mu 1e-2, tiny t *)
-    {1.0*^-2, 5.0, 1.0*^-20},                       (* lambda 1e-2, mu 5, tiny t *)
-    {1.0, 2.0, 1.0*^-30},                           (* moderate gap, very tiny t *)
-    {1.0, 2.0, 1.0*^-50},                           (* moderate gap, extreme t *)
-    {1.0, 1.0000000000000002, 1.0*^-30},            (* close, very tiny t *)
-    {1.0, 1.0000000000000002, 1.0*^-40},            (* close, tinier t *)
-    {1.0*^6, 1000000.0000000001, 1.0*^-16}           (* large lambda, tiny t, close *)
+    (* extreme small time *)
+    {1.0, 1.0000000000000002, 1.0*^-50}
 };
 
-(* One flat list of {lambda, mu, time} triples used by every table.
-   Join, not DeleteDuplicates: SameQ treats adjacent machine doubles as equal,
-   which would silently drop the one-ulp boundary cases above. *)
+(* One flat list of {lambda, mu, time} triples used by every table. *)
 allCases = Join[paramTimeCases, extraCases];
 
 (* Table Utility *)
